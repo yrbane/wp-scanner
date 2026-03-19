@@ -58,7 +58,8 @@ pub fn send_email(to: &str, content: &str, format: &OutputFormat) -> Result<()> 
 
 /// Send using local sendmail binary (postfix).
 fn send_via_sendmail(email: Message) -> Result<()> {
-    let transport = lettre::SendmailTransport::new();
+    // Use the absolute path — /usr/sbin is often not in the user's PATH.
+    let transport = lettre::SendmailTransport::new_with_command("/usr/sbin/sendmail");
     transport
         .send(&email)
         .context("Failed to send via sendmail")?;
