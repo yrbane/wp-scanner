@@ -16,9 +16,9 @@ const AFTER_HELP: &str = "\x1b[33mEMAIL:\x1b[0m\n\
 \x1b[33mEXAMPLES:\x1b[0m\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mlist\x1b[0m\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mversions\x1b[0m\n\
-  \x1b[2m$\x1b[0m wp-scanner \x1b[36mplugins\x1b[0m --site olikalari\n\
+  \x1b[2m$\x1b[0m wp-scanner \x1b[36mplugins\x1b[0m --site myblog\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mpermissions\x1b[0m --format json\n\
-  \x1b[2m$\x1b[0m wp-scanner \x1b[36mbackdoor\x1b[0m --site lafourniliere\n\
+  \x1b[2m$\x1b[0m wp-scanner \x1b[36mbackdoor\x1b[0m --site myshop\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mreport\x1b[0m --format html --mail admin@example.com\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mreport\x1b[0m --format html > report.html";
 
