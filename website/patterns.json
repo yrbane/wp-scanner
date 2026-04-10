@@ -1,0 +1,235 @@
+{
+  "version": "1.1.0",
+  "updated": "2026-04-10",
+  "uploads_safe_dirs": ["cache", "wflogs", "wp-file-manager-pro", "wc-logs"],
+  "patterns": [
+    {
+      "name": "eval_base64",
+      "pattern": "eval\\s*\\(\\s*base64_decode\\s*\\(",
+      "severity": "critical",
+      "description": "eval(base64_decode()) — classic PHP backdoor obfuscation"
+    },
+    {
+      "name": "eval_gzinflate",
+      "pattern": "eval\\s*\\(\\s*gzinflate\\s*\\(",
+      "severity": "critical",
+      "description": "eval(gzinflate()) — compressed code execution"
+    },
+    {
+      "name": "eval_gzuncompress",
+      "pattern": "eval\\s*\\(\\s*gzuncompress\\s*\\(",
+      "severity": "critical",
+      "description": "eval(gzuncompress()) — compressed code execution"
+    },
+    {
+      "name": "eval_str_rot13",
+      "pattern": "eval\\s*\\(\\s*str_rot13\\s*\\(",
+      "severity": "critical",
+      "description": "eval(str_rot13()) — ROT13 obfuscation"
+    },
+    {
+      "name": "assert_base64",
+      "pattern": "assert\\s*\\(\\s*base64_decode\\s*\\(",
+      "severity": "critical",
+      "description": "assert(base64_decode()) — alternative to eval backdoor"
+    },
+    {
+      "name": "assert_string",
+      "pattern": "assert\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)",
+      "severity": "critical",
+      "description": "assert() with superglobal — code execution via string evaluation"
+    },
+    {
+      "name": "preg_replace_eval",
+      "pattern": "preg_replace\\s*\\(\\s*['\"]/.+/[a-z]*e",
+      "severity": "critical",
+      "description": "preg_replace with /e modifier — code execution via regex"
+    },
+    {
+      "name": "webshell_signature",
+      "pattern": "(?i)(c99shell|r57shell|WSO\\s+\\d|b374k|FilesMan|WebShell|AnonymousFox|Alfa\\s*Shell|Leafmailer|PHP\\s*Mailer\\s*Vuln)",
+      "severity": "critical",
+      "description": "Known webshell signatures (c99, r57, WSO, b374k, FilesMan, AnonymousFox, AlfaShell)"
+    },
+    {
+      "name": "suppressed_superglobal_exec",
+      "pattern": "@\\$_(GET|POST|REQUEST|COOKIE)\\s*\\[",
+      "severity": "critical",
+      "description": "Suppressed superglobal access — common webshell pattern"
+    },
+    {
+      "name": "create_function_user_input",
+      "pattern": "create_function\\s*\\(.*\\$_(GET|POST|REQUEST)",
+      "severity": "critical",
+      "description": "create_function() with user input — dynamic code execution"
+    },
+    {
+      "name": "include_remote_url",
+      "pattern": "(include|require|include_once|require_once)\\s*\\(\\s*['\"]https?://",
+      "severity": "critical",
+      "description": "Remote file inclusion via include/require with URL"
+    },
+    {
+      "name": "include_user_input",
+      "pattern": "(include|require|include_once|require_once)\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)",
+      "severity": "critical",
+      "description": "Local/remote file inclusion with user-controlled path"
+    },
+    {
+      "name": "call_user_func_input",
+      "pattern": "call_user_func(_array)?\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)",
+      "severity": "critical",
+      "description": "call_user_func() with superglobal — arbitrary function call"
+    },
+    {
+      "name": "unserialize_user_input",
+      "pattern": "unserialize\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)",
+      "severity": "critical",
+      "description": "unserialize() with user input — PHP object injection"
+    },
+    {
+      "name": "extract_superglobal",
+      "pattern": "extract\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)",
+      "severity": "critical",
+      "description": "extract() on superglobal — variable injection / overwrite"
+    },
+    {
+      "name": "ini_set_url_include",
+      "pattern": "ini_set\\s*\\(\\s*['\"]allow_url_include",
+      "severity": "critical",
+      "description": "Enabling allow_url_include at runtime — remote file inclusion setup"
+    },
+    {
+      "name": "variable_function_call",
+      "pattern": "\\$\\{?\\$_(GET|POST|REQUEST|COOKIE).*\\}?\\s*\\(",
+      "severity": "critical",
+      "description": "Variable function call from superglobal — dynamic code execution"
+    },
+    {
+      "name": "shell_exec",
+      "pattern": "\\bshell_exec\\s*\\(",
+      "severity": "warning",
+      "description": "shell_exec() — shell command execution"
+    },
+    {
+      "name": "system_call",
+      "pattern": "\\bsystem\\s*\\(",
+      "severity": "warning",
+      "description": "system() — shell command execution"
+    },
+    {
+      "name": "passthru_call",
+      "pattern": "\\bpassthru\\s*\\(",
+      "severity": "warning",
+      "description": "passthru() — shell command execution with output"
+    },
+    {
+      "name": "exec_call",
+      "pattern": "\\bexec\\s*\\(",
+      "severity": "warning",
+      "description": "exec() — shell command execution"
+    },
+    {
+      "name": "popen_call",
+      "pattern": "\\bpopen\\s*\\(",
+      "severity": "warning",
+      "description": "popen() — process opening"
+    },
+    {
+      "name": "proc_open_call",
+      "pattern": "\\bproc_open\\s*\\(",
+      "severity": "warning",
+      "description": "proc_open() — process opening with I/O control"
+    },
+    {
+      "name": "file_put_contents_user_input",
+      "pattern": "file_put_contents\\s*\\(.*\\$_(GET|POST|REQUEST)",
+      "severity": "warning",
+      "description": "file_put_contents() with user input — arbitrary file write"
+    },
+    {
+      "name": "base64_decode_user_input",
+      "pattern": "base64_decode\\s*\\(.*\\$_(GET|POST|REQUEST|COOKIE)",
+      "severity": "warning",
+      "description": "base64_decode() with superglobal — encoded payload execution"
+    },
+    {
+      "name": "hex_obfuscation",
+      "pattern": "(\\\\x[0-9a-fA-F]{2}){10,}",
+      "severity": "warning",
+      "description": "Hex-encoded string obfuscation (10+ sequences)"
+    },
+    {
+      "name": "chr_obfuscation",
+      "pattern": "(chr\\s*\\(\\s*\\d+\\s*\\)\\s*\\.?\\s*){10,}",
+      "severity": "warning",
+      "description": "chr() chain obfuscation (10+ calls)"
+    },
+    {
+      "name": "move_uploaded_file_input",
+      "pattern": "move_uploaded_file\\s*\\(.*\\$_(GET|POST|REQUEST)",
+      "severity": "warning",
+      "description": "move_uploaded_file() with user-controlled destination"
+    },
+    {
+      "name": "fsockopen_call",
+      "pattern": "\\bfsockopen\\s*\\(",
+      "severity": "warning",
+      "description": "fsockopen() — raw socket connection (possible C2 callback)"
+    },
+    {
+      "name": "curl_exec_user_input",
+      "pattern": "curl_exec\\s*\\(.*\\$_(GET|POST|REQUEST)",
+      "severity": "warning",
+      "description": "curl_exec() with user input — SSRF / data exfiltration"
+    },
+    {
+      "name": "file_get_contents_user_input",
+      "pattern": "file_get_contents\\s*\\(\\s*\\$_(GET|POST|REQUEST)",
+      "severity": "warning",
+      "description": "file_get_contents() with user input — SSRF / local file read"
+    },
+    {
+      "name": "chmod_call",
+      "pattern": "\\bchmod\\s*\\(.*0?7[67]7",
+      "severity": "warning",
+      "description": "chmod() setting world/group-writable permissions (777/767)"
+    },
+    {
+      "name": "mail_header_injection",
+      "pattern": "\\bmail\\s*\\(.*\\$_(GET|POST|REQUEST)",
+      "severity": "warning",
+      "description": "mail() with user input — header injection / spam relay"
+    },
+    {
+      "name": "dl_extension_load",
+      "pattern": "\\bdl\\s*\\(\\s*['\"]",
+      "severity": "warning",
+      "description": "dl() — dynamic PHP extension loading"
+    },
+    {
+      "name": "eval_variable",
+      "pattern": "\\beval\\s*\\(\\s*\\$",
+      "severity": "info",
+      "description": "eval() with variable — may be legitimate but worth checking"
+    },
+    {
+      "name": "error_reporting_off",
+      "pattern": "error_reporting\\s*\\(\\s*0\\s*\\)",
+      "severity": "info",
+      "description": "error_reporting(0) — error suppression (common in backdoors)"
+    },
+    {
+      "name": "set_time_limit_zero",
+      "pattern": "set_time_limit\\s*\\(\\s*0\\s*\\)",
+      "severity": "info",
+      "description": "set_time_limit(0) — unlimited execution time"
+    },
+    {
+      "name": "disable_functions_check",
+      "pattern": "ini_get\\s*\\(\\s*['\"]disable_functions['\"]\\s*\\)",
+      "severity": "info",
+      "description": "Checking disable_functions — reconnaissance for available exploits"
+    }
+  ]
+}

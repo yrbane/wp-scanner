@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cyberpunk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WP Scanner — WordPress Security Scanner</title>
+    <meta name="description" content="Fast, single-binary WordPress security scanner written in Rust. Scans versions, plugins, permissions, and detects backdoors without executing PHP.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300d4ff' stroke-width='2'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/><path d='M9 12l2 2 4-4'/></svg>">
+    <link rel="stylesheet" href="css/aurora.min.css">
+    <style>
+        :root {
+            --wp-cyan: oklch(72% 0.15 200);
+            --wp-red: oklch(62% 0.25 25);
+            --wp-green: oklch(72% 0.2 150);
+            --wp-yellow: oklch(78% 0.15 85);
+        }
+        .hero { min-height: 80vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 4rem 1rem; position: relative; z-index: 1; }
+        .ascii-logo { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: clamp(0.6rem, 2.5vw, 1.1rem); line-height: 1.3; color: var(--wp-cyan); white-space: pre; margin-bottom: 1.5rem; text-shadow: 0 0 20px oklch(72% 0.15 200 / 0.4); }
+        .hero h1 { font-size: clamp(1.8rem, 5vw, 3.2rem); margin: 0.5rem 0; }
+        .hero p { max-width: 620px; opacity: 0.8; font-size: 1.1rem; line-height: 1.6; }
+        .hero-stats { display: flex; gap: 2rem; margin-top: 2rem; flex-wrap: wrap; justify-content: center; }
+        .hero-stats .stat { text-align: center; }
+        .hero-stats .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--wp-cyan); }
+        .hero-stats .stat-label { font-size: 0.8rem; opacity: 0.6; }
+        .buttons { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; justify-content: center; }
+        section { padding: 4rem 1rem; max-width: 1100px; margin: 0 auto; scroll-margin-top: 70px; position: relative; z-index: 1; }
+        section h2 { font-size: 2rem; margin-bottom: 1.5rem; text-align: center; }
+        .la-sec-tag { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem; border: 1px solid var(--wp-cyan); color: var(--wp-cyan); }
+        .commands-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+        .cmd-list { max-width: 750px; margin: 0 auto; }
+        .cmd-item { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem 0;
+                    border-bottom: 1px solid oklch(20% 0.01 280); }
+        .cmd-item:last-child { border-bottom: none; }
+        .cmd-item-icon { font-size: 1.3rem; flex-shrink: 0; width: 2rem; text-align: center; padding-top: 0.15rem; }
+        .cmd-item-content { flex: 1; }
+        .cmd-item-name { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 700;
+                         color: var(--wp-cyan); }
+        .cmd-item-syntax { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+                           color: oklch(60% 0 0); margin-top: 0.15rem; }
+        .cmd-item-syntax .flag { color: var(--wp-yellow); }
+        .cmd-item-desc { font-size: 0.9rem; opacity: 0.75; margin-top: 0.3rem; line-height: 1.5; }
+        .cmd-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .la-card code { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; background: oklch(0% 0 0 / 0.3); padding: 0.15rem 0.4rem; border-radius: 4px; }
+        .terminal { background: oklch(8% 0.01 280); border: 1px solid oklch(30% 0.02 280); border-radius: 12px; overflow: hidden; margin: 1.5rem 0; max-width: 700px; }
+        .terminal.center { margin-left: auto; margin-right: auto; }
+        .term-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: oklch(12% 0.01 280); }
+        .term-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .term-dot.r { background: #ff5f57; }
+        .term-dot.y { background: #ffbd2e; }
+        .term-dot.g { background: #28ca41; }
+        .term-bar span { margin-left: 8px; font-size: 0.75rem; opacity: 0.5; font-family: monospace; }
+        .term-body { padding: 1rem 1.2rem; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; line-height: 1.7; overflow-x: auto; margin: 0; background: none; border: none; color: inherit; }
+        .term-body .prompt { color: var(--wp-green); }
+        .term-body .comment { color: oklch(50% 0 0); }
+        .term-body .flag { color: var(--wp-yellow); }
+        .term-body .ok { color: var(--wp-green); }
+        .term-body .err { color: var(--wp-red); font-weight: 700; }
+        .term-body .dim { opacity: 0.5; }
+        .patterns-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        .patterns-table th { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 2px solid oklch(30% 0.02 280); color: var(--wp-cyan); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .patterns-table td { padding: 0.5rem 0.8rem; border-bottom: 1px solid oklch(20% 0.01 280); }
+        .patterns-table tr:hover td { background: oklch(15% 0.02 280); }
+        .sev-critical { color: var(--wp-red); font-weight: 700; }
+        .sev-warning { color: var(--wp-yellow); }
+        .sev-info { color: oklch(68% 0.15 250); }
+        .install-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin: 2rem 0; }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--wp-cyan); color: oklch(10% 0 0); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; }
+        .download-box { text-align: center; padding: 2rem; border: 1px solid oklch(30% 0.05 280); border-radius: 12px; background: oklch(10% 0.02 280); }
+        .download-box .version { font-size: 0.85rem; opacity: 0.6; margin-top: 0.5rem; }
+        footer { text-align: center; padding: 2rem 1rem; opacity: 0.5; font-size: 0.85rem; border-top: 1px solid oklch(20% 0.01 280); position: relative; z-index: 1; }
+        .update-info { background: oklch(12% 0.02 280); border: 1px solid oklch(25% 0.03 200); border-radius: 8px; padding: 1.2rem; margin: 1rem 0; }
+        .update-info code { color: var(--wp-yellow); }
+        .la-card-body p { line-height: 1.6; }
+
+        /* ── Navbar ─────────────────────────────────────────────── */
+        .navbar {
+            position: sticky; top: 0; z-index: 100;
+            background: oklch(6% 0.02 280 / 0.85);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
+            border-bottom: 1px solid oklch(25% 0.04 280 / 0.5);
+            padding: 0 1.5rem;
+            transition: box-shadow 0.3s, background 0.3s;
+        }
+        .navbar.scrolled {
+            box-shadow: 0 4px 24px oklch(0% 0 0 / 0.4);
+            background: oklch(6% 0.02 280 / 0.95);
+        }
+        .navbar-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            max-width: 1100px; margin: 0 auto;
+            height: 56px;
+        }
+        .navbar-brand {
+            display: flex; align-items: center; gap: 0.6rem;
+            text-decoration: none; font-weight: 700; font-size: 1.05rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--wp-cyan);
+            transition: opacity 0.2s;
+        }
+        .navbar-brand:hover { opacity: 0.8; }
+        .navbar-brand svg { flex-shrink: 0; }
+        .navbar-links { display: flex; align-items: center; gap: 0.25rem; }
+        .navbar-links a {
+            text-decoration: none; color: oklch(80% 0 0);
+            padding: 0.4rem 0.75rem; border-radius: 6px;
+            font-size: 0.85rem; transition: all 0.2s;
+        }
+        .navbar-links a:hover {
+            color: #fff;
+            background: oklch(30% 0.03 280);
+        }
+        .navbar-links a.active {
+            color: var(--wp-cyan);
+            background: oklch(25% 0.05 200 / 0.2);
+        }
+        .navbar-gh {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            text-decoration: none; font-size: 0.82rem; font-weight: 600;
+            color: #fff; padding: 0.35rem 0.9rem;
+            border-radius: 6px;
+            border: 1px solid oklch(40% 0.04 280);
+            background: oklch(15% 0.02 280);
+            transition: all 0.2s;
+            margin-left: 0.5rem;
+        }
+        .navbar-gh:hover {
+            border-color: var(--wp-cyan);
+            background: oklch(20% 0.04 200 / 0.3);
+        }
+        .navbar-gh svg { opacity: 0.8; }
+        .navbar-burger { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 0.4rem; }
+
+        @media (max-width: 768px) {
+            .navbar-links { display: none; position: absolute; top: 56px; left: 0; right: 0;
+                flex-direction: column; padding: 0.5rem 1rem 1rem;
+                background: oklch(6% 0.02 280 / 0.97); backdrop-filter: blur(16px);
+                border-bottom: 1px solid oklch(25% 0.04 280 / 0.5);
+            }
+            .navbar-links.open { display: flex; }
+            .navbar-links a { padding: 0.6rem 0.75rem; }
+            .navbar-burger { display: block; }
+        }
+
+        @media (max-width: 600px) { .hero-stats { gap: 1rem; } .commands-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<!-- ── Background 3D wireframes ────────────────────────────────────── -->
+<canvas id="geo" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;opacity:0.4;pointer-events:none;"></canvas>
+
+<!-- ── Navigation ──────────────────────────────────────────────────── -->
+<nav class="navbar" id="navbar">
+    <div class="navbar-inner">
+        <a href="#" class="navbar-brand">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M9 12l2 2 4-4"/>
+            </svg>
+            WP Scanner
+        </a>
+
+        <button class="navbar-burger" id="burger" aria-label="Menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+
+        <div class="navbar-links" id="nav-links">
+            <a href="#features">Features</a>
+            <a href="#commands">Commands</a>
+            <a href="#patterns">Patterns</a>
+            <a href="#install">Install</a>
+            <a href="https://github.com/yrbane/wp-scanner" class="navbar-gh">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                GitHub
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────── -->
+<header class="hero">
+    <div class="ascii-logo" aria-hidden="true">
+ █░█░█ █▀█   █▀ █▀▀ ▄▀█ █▄░█ █▄░█ █▀▀ █▀█
+ ▀▄▀▄▀ █▀▀   ▄█ █▄▄ █▀█ █░▀█ █░▀█ ██▄ █▀▄</div>
+    <span class="la-sec-tag">v0.1.0</span>
+    <h1>WordPress Security Scanner</h1>
+    <p>
+        Fast, single-binary CLI written in Rust. Scans versions, plugins, permissions, and
+        detects backdoors — all <strong>without executing any PHP code</strong>.
+    </p>
+    <div class="hero-stats">
+        <div class="stat"><div class="stat-value">38</div><div class="stat-label">Backdoor patterns</div></div>
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">Dependencies</div></div>
+        <div class="stat"><div class="stat-value">~7MB</div><div class="stat-label">Single binary</div></div>
+        <div class="stat"><div class="stat-value">~2s</div><div class="stat-label">Per site scan</div></div>
+    </div>
+    <div class="buttons">
+        <a href="#install" class="la-btn la-btn-primary">Get started</a>
+        <a href="https://github.com/yrbane/wp-scanner" class="la-btn la-btn-ghost">View on GitHub</a>
+    </div>
+</header>
+
+<!-- ── Features ─────────────────────────────────────────────────────── -->
+<section id="features">
+    <div style="text-align: center;"><span class="la-sec-tag">Features</span></div>
+    <h2>Why WP Scanner?</h2>
+    <div class="commands-grid">
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="cmd-icon">🛡️</div>
+                <h3 class="la-card-title">Safe by design</h3>
+                <p>Extracts WP versions and plugin metadata via regex. Never <code>include</code> or <code>require</code> — safe even on compromised servers.</p>
+            </div>
+        </div>
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="cmd-icon">⚡</div>
+                <h3 class="la-card-title">Parallel scanning</h3>
+                <p>Backdoor scanner uses <a href="https://github.com/rayon-rs/rayon">rayon</a> for parallel file analysis. Full site scanned in ~2 seconds.</p>
+            </div>
+        </div>
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="cmd-icon">🧠</div>
+                <h3 class="la-card-title">Smart API caching</h3>
+                <p>WordPress.org API responses are cached per session. Same plugin across 30 sites = 1 API call.</p>
+            </div>
+        </div>
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="cmd-icon">📄</div>
+                <h3 class="la-card-title">4 output formats</h3>
+                <p><code>console</code> (colored), <code>json</code>, <code>md</code>, <code>html</code> — dark-themed standalone HTML page included.</p>
+            </div>
+        </div>
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="cmd-icon">📧</div>
+                <h3 class="la-card-title">Email reports</h3>
+                <p>Auto-detects local postfix/sendmail. Falls back to remote SMTP. Just add <code>--mail</code>.</p>
+            </div>
+        </div>
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="cmd-icon">🔄</div>
+                <h3 class="la-card-title">Updatable patterns</h3>
+                <p>Backdoor patterns stored in an external JSON file. Update with <code>wp-scanner update</code> — no rebuild needed.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Commands ─────────────────────────────────────────────────────── -->
+<section id="commands">
+    <div style="text-align: center;"><span class="la-sec-tag">Commands</span></div>
+    <h2>What it does</h2>
+    <div class="cmd-list">
+        <div class="cmd-item">
+            <div class="cmd-item-icon">📋</div>
+            <div class="cmd-item-content">
+                <div class="cmd-item-name">list</div>
+                <div class="cmd-item-syntax">wp-scanner list <span class="flag">[--site</span> filter<span class="flag">]</span></div>
+                <div class="cmd-item-desc">Discover all WordPress installations served by nginx.</div>
+            </div>
+        </div>
+        <div class="cmd-item">
+            <div class="cmd-item-icon">🔢</div>
+            <div class="cmd-item-content">
+                <div class="cmd-item-name">versions</div>
+                <div class="cmd-item-syntax">wp-scanner versions <span class="flag">[--site</span> filter<span class="flag">]</span></div>
+                <div class="cmd-item-desc">Check WordPress core versions against the latest release. Flags outdated installs.</div>
+            </div>
+        </div>
+        <div class="cmd-item">
+            <div class="cmd-item-icon">🧩</div>
+            <div class="cmd-item-content">
+                <div class="cmd-item-name">plugins</div>
+                <div class="cmd-item-syntax">wp-scanner plugins <span class="flag">[--site</span> filter<span class="flag">]</span></div>
+                <div class="cmd-item-desc">Scan installed plugins, check for updates via wordpress.org API. Suggests <code>wp plugin update</code> commands.</div>
+            </div>
+        </div>
+        <div class="cmd-item">
+            <div class="cmd-item-icon">🔐</div>
+            <div class="cmd-item-content">
+                <div class="cmd-item-name">permissions</div>
+                <div class="cmd-item-syntax">wp-scanner permissions <span class="flag">[--site</span> filter<span class="flag">]</span></div>
+                <div class="cmd-item-desc">Audit file ownership and permissions. Detects world-writable dirs, www-data ownership. Generates fix commands.</div>
+            </div>
+        </div>
+        <div class="cmd-item">
+            <div class="cmd-item-icon">🔍</div>
+            <div class="cmd-item-content">
+                <div class="cmd-item-name">backdoor</div>
+                <div class="cmd-item-syntax">wp-scanner backdoor <span class="flag">[--site</span> filter<span class="flag">]</span></div>
+                <div class="cmd-item-desc">Scan for PHP backdoors, webshells, obfuscated code, and suspicious files. 38 patterns, parallelized with rayon.</div>
+            </div>
+        </div>
+        <div class="cmd-item">
+            <div class="cmd-item-icon">📊</div>
+            <div class="cmd-item-content">
+                <div class="cmd-item-name">report</div>
+                <div class="cmd-item-syntax">wp-scanner report <span class="flag">--format</span> html <span class="flag">--mail</span> admin@example.com</div>
+                <div class="cmd-item-desc">Comprehensive security report combining all checks. Supports console, JSON, Markdown, and HTML output.</div>
+            </div>
+        </div>
+        <div class="cmd-item">
+            <div class="cmd-item-icon">🔄</div>
+            <div class="cmd-item-content">
+                <div class="cmd-item-name">update</div>
+                <div class="cmd-item-syntax">wp-scanner update</div>
+                <div class="cmd-item-desc">Download the latest backdoor patterns from <a href="patterns.json">wp-scanner.gie.im</a>. No rebuild needed.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="terminal center" style="margin-top: 2rem;">
+        <div class="term-bar">
+            <div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div>
+            <span>wp-scanner</span>
+        </div>
+        <pre class="term-body"><span class="comment"># scan all sites</span>
+<span class="prompt">$</span> wp-scanner versions
+
+  Latest WordPress version: <span class="ok">6.9.4</span>
+
+  <span class="dim">VERSION    OWNER            GROUP            PERMS  PATH</span>
+  <span class="dim">────────────────────────────────────────────────────────────</span>
+  <span class="err">6.3       </span> alice            www-data         0750   /var/www/blog      <span class="err">⚠ OUTDATED</span>
+  <span class="ok">6.9.4</span>      bob              www-data         0750   /var/www/shop      <span class="ok">✓ OK</span>
+  <span class="dim">────────────────────────────────────────────────────────────</span>
+  <strong>2</strong> site(s)  <span class="dim">│</span>  <span class="ok">1 up-to-date</span>  <span class="err">1 outdated</span>
+
+<span class="comment"># full report for one site, emailed as HTML</span>
+<span class="prompt">$</span> wp-scanner report <span class="flag">--site</span> shop <span class="flag">--format</span> html <span class="flag">--mail</span> admin@example.com
+Report sent to admin@example.com</pre>
+    </div>
+</section>
+
+<!-- ── Patterns ─────────────────────────────────────────────────────── -->
+<section id="patterns">
+    <div style="text-align: center;"><span class="la-sec-tag">Backdoor detection</span></div>
+    <h2>Pattern database</h2>
+    <p style="text-align: center; opacity: 0.7; max-width: 600px; margin: 0 auto 2rem;">
+        Patterns are stored in an external <a href="patterns.json"><code>patterns.json</code></a> file
+        and can be updated independently from the binary.
+    </p>
+
+    <div class="update-info">
+        <strong>Update patterns at any time:</strong><br>
+        <code>$ wp-scanner update</code><br>
+        <span style="opacity: 0.6; font-size: 0.85rem;">
+            Downloads the latest patterns from <a href="patterns.json">wp-scanner.gie.im/patterns.json</a>
+            to <code>~/.config/wp-scanner/patterns.json</code>
+        </span>
+    </div>
+
+    <table class="patterns-table">
+        <thead>
+            <tr><th>Pattern</th><th>Severity</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td colspan="3" style="color: var(--wp-red); font-weight: 600; padding-top: 1rem;">Code execution &amp; obfuscation</td></tr>
+            <tr><td><code>eval_base64</code></td><td class="sev-critical">CRITICAL</td><td>eval(base64_decode()) — classic obfuscation</td></tr>
+            <tr><td><code>eval_gzinflate</code></td><td class="sev-critical">CRITICAL</td><td>eval(gzinflate()) — compressed code execution</td></tr>
+            <tr><td><code>eval_str_rot13</code></td><td class="sev-critical">CRITICAL</td><td>eval(str_rot13()) — ROT13 obfuscation</td></tr>
+            <tr><td><code>assert_base64</code></td><td class="sev-critical">CRITICAL</td><td>assert(base64_decode()) — alternative to eval</td></tr>
+            <tr><td><code>assert_string</code></td><td class="sev-critical">CRITICAL</td><td>assert() with superglobal — string code execution</td></tr>
+            <tr><td><code>preg_replace_eval</code></td><td class="sev-critical">CRITICAL</td><td>preg_replace with /e modifier</td></tr>
+            <tr><td><code>create_function_input</code></td><td class="sev-critical">CRITICAL</td><td>create_function() with user input</td></tr>
+            <tr><td><code>call_user_func_input</code></td><td class="sev-critical">CRITICAL</td><td>call_user_func() with superglobal — arbitrary function call</td></tr>
+            <tr><td><code>variable_function_call</code></td><td class="sev-critical">CRITICAL</td><td>$_GET['func']() — dynamic function call from user input</td></tr>
+            <tr><td><code>obfuscated_long_line</code></td><td class="sev-critical">CRITICAL</td><td>Lines &gt;1000 chars with eval/base64</td></tr>
+
+            <tr><td colspan="3" style="color: var(--wp-red); font-weight: 600; padding-top: 1rem;">Webshells &amp; signatures</td></tr>
+            <tr><td><code>webshell_signature</code></td><td class="sev-critical">CRITICAL</td><td>c99, r57, WSO, b374k, FilesMan, AnonymousFox, AlfaShell</td></tr>
+            <tr><td><code>suppressed_superglobal</code></td><td class="sev-critical">CRITICAL</td><td>@$_GET[ / @$_POST[ — suppressed access</td></tr>
+            <tr><td><code>php_in_uploads</code></td><td class="sev-critical">CRITICAL</td><td>PHP files in wp-content/uploads/</td></tr>
+            <tr><td><code>hidden_php_file</code></td><td class="sev-warning">WARNING</td><td>Hidden dotfiles with .php extension</td></tr>
+
+            <tr><td colspan="3" style="color: var(--wp-red); font-weight: 600; padding-top: 1rem;">File inclusion &amp; injection</td></tr>
+            <tr><td><code>include_remote_url</code></td><td class="sev-critical">CRITICAL</td><td>include/require with http:// URL — remote file inclusion</td></tr>
+            <tr><td><code>include_user_input</code></td><td class="sev-critical">CRITICAL</td><td>include/require with $_GET/$_POST — LFI/RFI</td></tr>
+            <tr><td><code>unserialize_user_input</code></td><td class="sev-critical">CRITICAL</td><td>unserialize() with user input — PHP object injection</td></tr>
+            <tr><td><code>extract_superglobal</code></td><td class="sev-critical">CRITICAL</td><td>extract($_GET/$_POST) — variable overwrite</td></tr>
+            <tr><td><code>ini_set_url_include</code></td><td class="sev-critical">CRITICAL</td><td>Enabling allow_url_include at runtime</td></tr>
+
+            <tr><td colspan="3" style="color: var(--wp-yellow); font-weight: 600; padding-top: 1rem;">Shell &amp; process execution</td></tr>
+            <tr><td><code>shell_exec</code></td><td class="sev-warning">WARNING</td><td>shell_exec() — shell command execution</td></tr>
+            <tr><td><code>system_call</code></td><td class="sev-warning">WARNING</td><td>system() — shell command execution</td></tr>
+            <tr><td><code>exec_call</code></td><td class="sev-warning">WARNING</td><td>exec() — shell command execution</td></tr>
+            <tr><td><code>passthru_call</code></td><td class="sev-warning">WARNING</td><td>passthru() — shell command with output</td></tr>
+            <tr><td><code>popen_call</code></td><td class="sev-warning">WARNING</td><td>popen() / proc_open() — process opening</td></tr>
+            <tr><td><code>dl_extension_load</code></td><td class="sev-warning">WARNING</td><td>dl() — dynamic PHP extension loading</td></tr>
+
+            <tr><td colspan="3" style="color: var(--wp-yellow); font-weight: 600; padding-top: 1rem;">File &amp; network operations</td></tr>
+            <tr><td><code>file_put_contents</code></td><td class="sev-warning">WARNING</td><td>file_put_contents() with user input — arbitrary file write</td></tr>
+            <tr><td><code>move_uploaded_file</code></td><td class="sev-warning">WARNING</td><td>move_uploaded_file() with user-controlled destination</td></tr>
+            <tr><td><code>file_get_contents</code></td><td class="sev-warning">WARNING</td><td>file_get_contents() with user input — SSRF / local file read</td></tr>
+            <tr><td><code>fsockopen_call</code></td><td class="sev-warning">WARNING</td><td>fsockopen() — raw socket (possible C2 callback)</td></tr>
+            <tr><td><code>curl_exec_user_input</code></td><td class="sev-warning">WARNING</td><td>curl_exec() with user input — SSRF / exfiltration</td></tr>
+            <tr><td><code>chmod_777</code></td><td class="sev-warning">WARNING</td><td>chmod() setting 777/767 permissions</td></tr>
+            <tr><td><code>mail_header_injection</code></td><td class="sev-warning">WARNING</td><td>mail() with user input — header injection / spam relay</td></tr>
+
+            <tr><td colspan="3" style="color: var(--wp-yellow); font-weight: 600; padding-top: 1rem;">Obfuscation</td></tr>
+            <tr><td><code>hex_obfuscation</code></td><td class="sev-warning">WARNING</td><td>\x hex sequences (10+ consecutive)</td></tr>
+            <tr><td><code>chr_obfuscation</code></td><td class="sev-warning">WARNING</td><td>chr() chain obfuscation (10+ calls)</td></tr>
+            <tr><td><code>base64_decode_input</code></td><td class="sev-warning">WARNING</td><td>base64_decode() with superglobal input</td></tr>
+
+            <tr><td colspan="3" style="color: oklch(68% 0.15 250); font-weight: 600; padding-top: 1rem;">Reconnaissance</td></tr>
+            <tr><td><code>eval_variable</code></td><td class="sev-info">INFO</td><td>eval($var) — may be legitimate</td></tr>
+            <tr><td><code>error_reporting_off</code></td><td class="sev-info">INFO</td><td>error_reporting(0) — error suppression</td></tr>
+            <tr><td><code>set_time_limit_zero</code></td><td class="sev-info">INFO</td><td>set_time_limit(0) — unlimited execution time</td></tr>
+            <tr><td><code>disable_functions_check</code></td><td class="sev-info">INFO</td><td>ini_get('disable_functions') — exploit reconnaissance</td></tr>
+        </tbody>
+    </table>
+
+    <p style="text-align: center; opacity: 0.6; font-size: 0.85rem; margin-top: 1rem;">
+        WP core directories (wp-includes/, wp-admin/) are only checked for Critical patterns.<br>
+        Known cache directories in uploads/ are excluded from the PHP-in-uploads check.
+    </p>
+</section>
+
+<!-- ── Install ─────────────────────────────────────────────────────── -->
+<section id="install">
+    <div style="text-align: center;"><span class="la-sec-tag">Getting started</span></div>
+    <h2>Installation</h2>
+
+    <div class="install-steps">
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="step-num">1</div>
+                <h3 class="la-card-title">Install Rust</h3>
+                <p><code>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</code></p>
+            </div>
+        </div>
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="step-num">2</div>
+                <h3 class="la-card-title">Build</h3>
+                <p><code>git clone https://github.com/yrbane/wp-scanner.git<br>cd wp-scanner &amp;&amp; cargo build --release</code></p>
+            </div>
+        </div>
+        <div class="la-card">
+            <div class="la-card-body">
+                <div class="step-num">3</div>
+                <h3 class="la-card-title">Install</h3>
+                <p><code>cp target/release/wp-scanner ~/.local/bin/</code></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="terminal center">
+        <div class="term-bar">
+            <div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div>
+            <span>install</span>
+        </div>
+        <pre class="term-body"><span class="prompt">$</span> git clone https://github.com/yrbane/wp-scanner.git
+<span class="prompt">$</span> cd wp-scanner
+<span class="prompt">$</span> cargo build <span class="flag">--release</span>
+<span class="dim">   Compiling wp-scanner v0.1.0</span>
+<span class="dim">    Finished release [optimized] target(s) in 15.2s</span>
+<span class="prompt">$</span> cp target/release/wp-scanner ~/.local/bin/
+<span class="prompt">$</span> wp-scanner <span class="flag">--version</span>
+wp-scanner <span class="ok">0.1.0</span></pre>
+    </div>
+
+    <h3 style="margin-top: 3rem; text-align: center;">Requirements</h3>
+    <div class="la-flex la-gap-4 la-justify-center" style="margin-top: 1rem; flex-wrap: wrap;">
+        <span class="la-badge la-badge-cyan">Linux</span>
+        <span class="la-badge la-badge-violet">Rust 1.70+</span>
+        <span class="la-badge la-badge-green">nginx</span>
+        <span class="la-badge la-badge-pink">Read access to WP dirs</span>
+    </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────────────── -->
+<footer>
+    <p>
+        <a href="https://github.com/yrbane/wp-scanner" style="text-decoration: none; opacity: 0.7;">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="patterns.json" style="text-decoration: none; opacity: 0.7;">patterns.json</a>
+        &nbsp;·&nbsp;
+        MIT License
+    </p>
+    <p style="margin-top: 0.5rem;">Built with Rust 🦀 &amp; <a href="https://yrbane.github.io/lunar-aurora/" style="text-decoration: none;">Lunar Aurora</a></p>
+</footer>
+
+<script>window.GEO3D_FORCE_RANDOM = true;</script>
+<script src="css/geo3d.js"></script>
+<script>
+// Navbar scroll shadow
+const nav = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 20);
+});
+
+// Mobile burger menu
+document.getElementById('burger').addEventListener('click', () => {
+    document.getElementById('nav-links').classList.toggle('open');
+});
+
+// Close menu on link click
+document.querySelectorAll('#nav-links a').forEach(a => {
+    a.addEventListener('click', () => {
+        document.getElementById('nav-links').classList.remove('open');
+    });
+});
+
+// Active link highlight on scroll
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.navbar-links a[href^="#"]');
+window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+        if (window.scrollY >= s.offsetTop - 100) current = s.id;
+    });
+    navLinks.forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+});
+</script>
+</body>
+</html>
