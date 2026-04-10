@@ -211,7 +211,7 @@
     mouseSmooth: 0.035,
     breathe: 0.04,
     breatheSpeed: 1.5,
-    subdivisions: 1,
+    subdivisions: 0,
   };
 
   // Apply URL params to CONFIG
@@ -279,7 +279,7 @@
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
   function generateRandom() {
-    var numLayers = randInt(2, 5);
+    var numLayers = randInt(2, 3);
     var defs = [];
     var baseHue = Math.random() * 360;
 
