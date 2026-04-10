@@ -9,6 +9,8 @@
 
 Discovers WordPress installations served by nginx, then audits versions, plugins, file permissions, and scans for backdoors — all **without executing any PHP code**, making it safe to run even on compromised servers.
 
+**[Documentation & Pattern Database](https://yrbane.github.io/wp-scanner/)**
+
 ---
 
 ## Features
@@ -19,17 +21,19 @@ Discovers WordPress installations served by nginx, then audits versions, plugins
 | `versions` | Check WordPress core versions against the latest release |
 | `plugins` | Scan installed plugins and check for updates via wordpress.org API |
 | `permissions` | Audit file permissions and ownership (world-writable, www-data, etc.) |
-| `backdoor` | Scan for potential backdoors and malicious PHP code |
+| `backdoor` | Scan for potential backdoors and malicious PHP code (38 patterns) |
 | `report` | Generate a comprehensive security report (all checks combined) |
+| `update` | Download the latest backdoor patterns from the remote database |
 
 ### Highlights
 
 - **Safe** — extracts WP versions and plugin metadata via regex, never `include`/`require`
 - **Fast** — parallel file scanning with [rayon](https://github.com/rayon-rs/rayon) (~2s per site for backdoor scans)
 - **Smart** — caches wordpress.org API responses (1 call per plugin slug, even across 30+ sites)
-- **Multi-root nginx** — correctly handles configs with multiple `server` blocks (fixes a bug in the original PHP implementation it replaces)
+- **Multi-root nginx** — correctly handles configs with multiple `server` blocks
 - **4 output formats** — `console` (colored), `json`, `md`, `html` (standalone dark-themed page)
 - **Email** — auto-detects local sendmail/postfix; falls back to remote SMTP
+- **Updatable patterns** — backdoor patterns stored in external JSON, updated without rebuilding
 - **Single binary** — no runtime dependencies, no PHP, no Python
 
 ---
@@ -85,6 +89,9 @@ wp-scanner report --format html > report.html
 
 # Scan a specific directory (bypass nginx discovery)
 wp-scanner report --path /var/www/my-wordpress
+
+# Update backdoor patterns
+wp-scanner update
 ```
 
 ### Global options
@@ -138,31 +145,73 @@ Generates a standalone HTML page with a dark theme, color-coded tables, and copy
 
 ## Backdoor scanner
 
-Detects ~20 patterns organized by severity:
+Detects **38 patterns** organized by severity:
 
-### Critical (almost certainly malicious)
+### Critical
 
-- `eval(base64_decode(…))`, `eval(gzinflate(…))`, `eval(str_rot13(…))`
-- `assert(base64_decode(…))`
-- `preg_replace` with `/e` modifier (code execution)
-- Known webshell signatures (c99, r57, WSO, b374k, FilesMan)
-- PHP files in `wp-content/uploads/` (with safe cache dir exclusions)
-- Obfuscated long lines (>1000 chars with eval/base64)
-- `create_function()` with superglobal input
-- `@$_GET[`/`@$_POST[` suppressed superglobal execution
+| Pattern | Description |
+|---------|-------------|
+| `eval_base64` | `eval(base64_decode())` — classic obfuscation |
+| `eval_gzinflate` | `eval(gzinflate())` — compressed code execution |
+| `eval_str_rot13` | `eval(str_rot13())` — ROT13 obfuscation |
+| `assert_base64` | `assert(base64_decode())` — alternative to eval |
+| `assert_string` | `assert()` with superglobal input |
+| `preg_replace_eval` | `preg_replace` with `/e` modifier |
+| `webshell_signature` | c99, r57, WSO, b374k, FilesMan, AnonymousFox, AlfaShell |
+| `suppressed_superglobal` | `@$_GET[` / `@$_POST[` suppressed access |
+| `create_function_input` | `create_function()` with user input |
+| `include_remote_url` | `include/require` with `http://` URL |
+| `include_user_input` | `include/require` with `$_GET`/`$_POST` |
+| `call_user_func_input` | `call_user_func()` with superglobal |
+| `unserialize_user_input` | `unserialize()` — PHP object injection |
+| `extract_superglobal` | `extract($_GET)` — variable overwrite |
+| `ini_set_url_include` | Enabling `allow_url_include` at runtime |
+| `variable_function_call` | `$_GET['func']()` — dynamic call |
+| `php_in_uploads` | PHP files in `wp-content/uploads/` |
+| `obfuscated_long_line` | Lines >1000 chars with eval/base64 |
 
-### Warning (suspicious, needs investigation)
+### Warning
 
-- `system()`, `exec()`, `passthru()`, `shell_exec()`, `popen()`, `proc_open()`
-- `file_put_contents()` with `$_GET`/`$_POST`/`$_REQUEST`
-- `base64_decode()` with superglobal input
-- Hex obfuscation (`\x` sequences) and `chr()` obfuscation chains
-- Hidden PHP dotfiles
+| Pattern | Description |
+|---------|-------------|
+| `shell_exec` / `system_call` / `exec_call` / `passthru_call` | Shell command execution |
+| `popen_call` / `proc_open_call` | Process opening |
+| `file_put_contents` | File write with user input |
+| `move_uploaded_file` | User-controlled upload destination |
+| `file_get_contents` | SSRF / local file read with user input |
+| `fsockopen_call` | Raw socket connection (C2 callback) |
+| `curl_exec_user_input` | SSRF / data exfiltration |
+| `chmod_777` | Setting world-writable permissions |
+| `mail_header_injection` | `mail()` with user input |
+| `dl_extension_load` | Dynamic PHP extension loading |
+| `hex_obfuscation` | `\x` hex sequences (10+ consecutive) |
+| `chr_obfuscation` | `chr()` chain (10+ calls) |
+| `base64_decode_input` | `base64_decode()` with superglobal |
+| `hidden_php_file` | Hidden dotfiles with `.php` extension |
+
+### Info
+
+| Pattern | Description |
+|---------|-------------|
+| `eval_variable` | `eval($var)` — may be legitimate |
+| `error_reporting_off` | `error_reporting(0)` — error suppression |
+| `set_time_limit_zero` | `set_time_limit(0)` — unlimited execution |
+| `disable_functions_check` | `ini_get('disable_functions')` — recon |
 
 ### Smart filtering
 
-- **WP core directories** (`wp-includes/`, `wp-admin/`) are only checked for Critical patterns (they contain legitimate uses of `exec()` etc.)
-- **Known cache directories** in uploads (`cache/`, `wflogs/`, `wp-file-manager-pro/`) are excluded from the PHP-in-uploads check
+- **WP core directories** (`wp-includes/`, `wp-admin/`) are only checked for Critical patterns
+- **Known cache directories** in uploads (`cache/`, `wflogs/`, `wp-file-manager-pro/`, `wc-logs/`) are excluded from the PHP-in-uploads check
+
+### Updating patterns
+
+Patterns are stored in an external JSON file and can be updated without rebuilding:
+
+```bash
+wp-scanner update
+# Downloads latest patterns from https://wp-scanner.gie.im/patterns.json
+# Saves to ~/.config/wp-scanner/patterns.json
+```
 
 ---
 
@@ -209,6 +258,14 @@ src/
     ├── markdown.rs        Markdown tables
     ├── html.rs            Standalone HTML page (dark theme)
     └── email.rs           Email delivery (sendmail / SMTP)
+
+website/                   Landing page (wp-scanner.gie.im)
+├── index.html             Lunar Aurora + geo3d background
+├── patterns.json          Pattern database (served for `wp-scanner update`)
+└── css/                   Assets (aurora.min.css, geo3d.js)
+
+builtin_patterns.json      Fallback patterns compiled into the binary
+.github/workflows/         Auto-deploy website to GitHub Pages on push
 ```
 
 ### Design principles
@@ -216,7 +273,7 @@ src/
 - **SOLID** — `OutputFormatter` trait (Open/Closed), single-responsibility modules, dependency inversion via traits
 - **DRY** — shared `WpApi` cache, reusable `SiteReport` structure, `build_reports()` helper
 - **Safe** — no PHP execution, no shell injection, regex-only extraction
-- **Tested** — 25 unit tests covering version extraction, plugin metadata parsing, backdoor detection, permission checks
+- **Tested** — 27 unit tests covering all scanner modules
 
 ---
 
@@ -227,7 +284,7 @@ cargo test
 ```
 
 ```
-test result: ok. 25 passed; 0 failed; 0 ignored
+test result: ok. 27 passed; 0 failed; 0 ignored
 ```
 
 ---
