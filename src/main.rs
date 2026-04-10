@@ -16,11 +16,17 @@ use clap::Parser;
 
 use cli::{Cli, Commands};
 use models::*;
-use scanner::{backdoor::BackdoorScanner, discovery, permissions, plugins, version};
+use scanner::{backdoor, backdoor::BackdoorScanner, discovery, permissions, plugins, version};
 use wordpress_api::WpApi;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // ── Handle update command early (no site discovery needed) ──────────
+    if matches!(&cli.command, Commands::Update) {
+        return backdoor::update_patterns();
+    }
+
     let formatter = output::create_formatter(&cli.format);
     let mut api = WpApi::new();
 
@@ -101,6 +107,8 @@ fn main() -> Result<()> {
             });
             formatter.format_report(&reports)
         }
+
+        Commands::Update => unreachable!("handled above"),
 
         Commands::Report => {
             let latest_wp = api.latest_wp_version();

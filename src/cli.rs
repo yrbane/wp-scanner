@@ -20,7 +20,8 @@ const AFTER_HELP: &str = "\x1b[33mEMAIL:\x1b[0m\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mpermissions\x1b[0m --format json\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mbackdoor\x1b[0m --site myshop\n\
   \x1b[2m$\x1b[0m wp-scanner \x1b[36mreport\x1b[0m --format html --mail admin@example.com\n\
-  \x1b[2m$\x1b[0m wp-scanner \x1b[36mreport\x1b[0m --format html > report.html";
+  \x1b[2m$\x1b[0m wp-scanner \x1b[36mreport\x1b[0m --format html > report.html\n\
+  \x1b[2m$\x1b[0m wp-scanner \x1b[36mupdate\x1b[0m";
 
 #[derive(Parser)]
 #[command(
@@ -81,6 +82,8 @@ pub enum Commands {
     Backdoor,
     /// Generate a comprehensive security report (all checks)
     Report,
+    /// Update backdoor patterns from wp-scanner.gie.im
+    Update,
 }
 
 #[derive(ValueEnum, Clone, Debug)]
